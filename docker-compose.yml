@@ -20,7 +20,10 @@ services:
     environment:
       - TZ=${TZ:-Asia/Shanghai}
     ports:
-      - "${PTPOCKET_PORT:-8787}:8787"
+      # 唯一需要对外的端口。务必套 HTTPS 再暴露到公网（见 README）。
+      # 若用 Cloudflare Tunnel，把这段整体注释掉即可 —— tunnel 容器在同一
+      # 网络内直接访问 ptpocket:8787，公网零入站端口。
+      - "${PTPOCKET_BIND:-0.0.0.0}:${PTPOCKET_PORT:-8787}:8787"
     # 让容器能用 http://host.docker.internal:<端口> 访问宿主机上已有的 qBittorrent，
     # 省得去查 NAS 的内网 IP。qB 若和本 compose 一起跑，直接用服务名 qbittorrent 即可。
     extra_hosts:
@@ -43,12 +46,21 @@ services:
       # ${DATA_DIR}/prowlarr/Definitions/Custom/ 即可
       - ${DATA_DIR:-./data}/prowlarr:/config
     ports:
-      # 只为首次配置站点用。配完可以注释掉，让它只在内网可达
-      - "${PROWLARR_PORT:-9696}:9696"
+      # ⚠ 绝不要把这个端口暴露到公网 —— Prowlarr 的 API Key 等于你所有 PT 站的登录态。
+      #
+      # ptpocket 是走内部网络用服务名 prowlarr:9696 访问它的，跟这里发布的端口无关。
+      # 所以这个映射只是给你的浏览器做初始配置用。配完之后建议二选一：
+      #   1. 把下面这行注释掉（最安全，需要改配置时再临时打开）
+      #   2. 在 .env 里设 PROWLARR_BIND=127.0.0.1，只允许 NAS 本机访问
+      #      （远程改配置时用 SSH 端口转发：ssh -L 9696:127.0.0.1:9696 nas）
+      - "${PROWLARR_BIND:-0.0.0.0}:${PROWLARR_PORT:-9696}:9696"
     networks: [ptnet]
 
   # 过 Cloudflare 五秒盾。国内站基本都挂了 CF，建议保留。
   # Prowlarr 里填 http://flaresolverr:8191/
+  #
+  # 刻意不发布 8191 端口：它本质是个可被驱使去访问任意网址的无头浏览器，
+  # 暴露出去等于开放代理。只在内部网络可达就够了。
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
@@ -79,6 +91,18 @@ services:
       - "6881:6881"
       - "6881:6881/udp"
     networks: [ptnet]
+
+  # 推荐的外网访问方式：零入站端口、自带 HTTPS，不用管 DDNS 和证书。
+  # 取消注释并在 .env 里填 CF_TUNNEL_TOKEN（Cloudflare Zero Trust 创建 Tunnel 后获得），
+  # 然后在 Tunnel 的 Public Hostname 里指向 http://ptpocket:8787。
+  # 同时可以把 ptpocket 的 ports 段整体注释掉，一个端口都不用开。
+  #
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: cloudflared
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+  #   networks: [ptnet]
 
 networks:
   ptnet:
