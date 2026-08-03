@@ -35,15 +35,19 @@ async function main() {
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(rateLimit, { global: false });
 
-  const prowlarr = new ProwlarrClient(config.PROWLARR_URL, config.PROWLARR_API_KEY);
+  const prowlarr = new ProwlarrClient(
+    config.PROWLARR_URL,
+    config.PROWLARR_API_KEY,
+    config.PROWLARR_CONFIG_FILE,
+  );
   const qb = new QbClient(config.QB_URL, config.QB_USERNAME, config.QB_PASSWORD, {
     insecureTls: config.QB_INSECURE_TLS,
   });
 
   if (!config.PROWLARR_API_KEY) {
-    app.log.warn(
-      "未配置 PROWLARR_API_KEY —— 搜索不可用。请到 Prowlarr → Settings → General → Security " +
-        "复制 API Key 填进 .env，然后重启本服务",
+    app.log.info(
+      { configFile: config.PROWLARR_CONFIG_FILE },
+      "未显式配置 PROWLARR_API_KEY，将自动从 Prowlarr 的 config.xml 读取",
     );
   }
 

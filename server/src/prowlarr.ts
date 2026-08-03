@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { XMLParser } from "fast-xml-parser";
 
 /**
@@ -115,26 +117,79 @@ function text(v: unknown): string {
 }
 
 export class ProwlarrClient {
+  /** 从 config.xml 读出来的 key，读到后缓存 */
+  private resolvedKey: string | null = null;
+
   constructor(
     private readonly baseUrl: string,
+    /** 显式配置的 key；留空则自动从 configFile 读取 */
     private readonly apiKey: string,
+    private readonly configFile: string = "",
   ) {}
 
-  /** 未配置 API Key 时，给出「怎么拿」而不是让 Prowlarr 回一个费解的 401 */
-  private assertConfigured(): void {
-    if (!this.apiKey) {
+  /**
+   * 解析 API Key。优先用显式配置的，否则从 Prowlarr 的 config.xml 里读。
+   *
+   * 为什么这样做：Prowlarr 首次启动会自己生成一个 API Key 并写进 config.xml。
+   * 让用户手工复制一遍纯属多余，而且会造成鸡生蛋问题（要先跑起 Prowlarr 才能拿到）。
+   * 直接读文件就免了这一步。
+   *
+   * 刻意不去改 Prowlarr 的 key（比如用 PROWLARR__AUTH__APIKEY 环境变量强制指定）——
+   * 那会把已有 Prowlarr 的 key 换掉，连带弄坏其他指向它的客户端（Sonarr / Radarr 等）。
+   *
+   * 失败不缓存：容器可能比 Prowlarr 先起来，config.xml 还没生成，下次请求再读即可。
+   */
+  private async resolveApiKey(): Promise<string> {
+    if (this.apiKey) return this.apiKey;
+    if (this.resolvedKey) return this.resolvedKey;
+
+    if (!this.configFile) {
       throw new ProwlarrError(
-        "未配置 Prowlarr API Key。打开 Prowlarr → Settings → General → Security 复制 API Key，" +
-          "填进 .env 的 PROWLARR_API_KEY 后重启本服务（也可从 Prowlarr 配置目录的 config.xml 里读取）",
+        "未配置 Prowlarr API Key，也没有指定 config.xml 路径。请在 .env 里填 PROWLARR_API_KEY",
       );
     }
+
+    let xml: string;
+    try {
+      xml = await readFile(this.configFile, "utf8");
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === "ENOENT") {
+        throw new ProwlarrError(
+          `读不到 Prowlarr 的配置文件（${this.configFile}）。若 Prowlarr 刚启动，稍等几秒会自动生成；` +
+            `若 Prowlarr 不在本机，请在 .env 里手动填 PROWLARR_API_KEY`,
+        );
+      }
+      if (code === "EACCES") {
+        throw new ProwlarrError(
+          `没有权限读取 ${this.configFile}。检查 PUID/PGID 是否与 Prowlarr 容器一致`,
+        );
+      }
+      throw new ProwlarrError(`读取 Prowlarr 配置失败: ${(err as Error).message}`);
+    }
+
+    const key = /<ApiKey>([^<]+)<\/ApiKey>/i.exec(xml)?.[1]?.trim();
+    if (!key) {
+      throw new ProwlarrError(
+        `${this.configFile} 里没有 ApiKey 字段。若你给 Prowlarr 设了 PROWLARR__AUTH__APIKEY ` +
+          `环境变量，它不会落盘 —— 请把同一个值填进 .env 的 PROWLARR_API_KEY`,
+      );
+    }
+
+    this.resolvedKey = key;
+    return key;
+  }
+
+  /** key 可能被轮换过，401 时清掉缓存以便重读 */
+  private invalidateKey(): void {
+    this.resolvedKey = null;
   }
 
   private async fetchWithTimeout(
     path: string,
     opts: { signal?: AbortSignal; timeoutMs?: number; accept?: string } = {},
   ): Promise<Response> {
-    this.assertConfigured();
+    const apiKey = await this.resolveApiKey();
     const timeoutMs = opts.timeoutMs ?? 20_000;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -144,10 +199,13 @@ export class ProwlarrClient {
     }
 
     try {
-      return await fetch(`${this.baseUrl}${path}`, {
+      const res = await fetch(`${this.baseUrl}${path}`, {
         signal: ctl.signal,
-        headers: { "X-Api-Key": this.apiKey, Accept: opts.accept ?? "application/json" },
+        headers: { "X-Api-Key": apiKey, Accept: opts.accept ?? "application/json" },
       });
+      // key 可能被换过（Prowlarr 重新生成等），清缓存让下次重读 config.xml
+      if (res.status === 401) this.invalidateKey();
+      return res;
     } catch (err) {
       if ((err as Error)?.name === "AbortError") {
         throw new ProwlarrError(`Prowlarr 请求超时（${timeoutMs}ms）: ${path}`);
@@ -281,7 +339,7 @@ export class ProwlarrClient {
     downloadUrl: string,
     opts: { signal?: AbortSignal; timeoutMs?: number } = {},
   ): Promise<{ bytes: Uint8Array; filename: string }> {
-    this.assertConfigured();
+    const apiKey = await this.resolveApiKey();
     let url: string;
     try {
       url = this.rewriteOrigin(downloadUrl);
@@ -297,9 +355,10 @@ export class ProwlarrClient {
       const res = await fetch(url, {
         signal: ctl.signal,
         redirect: "follow",
-        headers: { "X-Api-Key": this.apiKey },
+        headers: { "X-Api-Key": apiKey },
       });
       if (!res.ok) {
+        if (res.status === 401) this.invalidateKey();
         const body = await res.text().catch(() => "");
         throw new ProwlarrError(`下载种子失败 ${res.status}: ${body.slice(0, 200)}`, res.status);
       }

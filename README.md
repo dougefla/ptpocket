@@ -62,12 +62,12 @@ docker compose up -d
 |---|---|
 | `SESSION_SECRET` | `openssl rand -hex 32` 生成 |
 | `APP_PASSWORD` | 打开 App 时输入的密码 |
-| `PROWLARR_API_KEY` | 第 2 步配好 Prowlarr 后回来填 |
 | `QB_URL` / `QB_PASSWORD` | 指向你的 qBittorrent（远程也可以，见 1b） |
 | `DATA_DIR` | 配置存放目录，写绝对路径 |
 | `PUID` / `PGID` | 群晖常是 `1026`/`100`，OMV/威联通 `1000`/`100`，unRAID `99`/`100`，用 `id` 确认 |
 
 `PTPOCKET_IMAGE` 默认已指向本项目发布的公开镜像，不用改；除非你 fork 后自建（见 1c）。
+`PROWLARR_API_KEY` 也不用填 —— 会自动从 Prowlarr 的 `config.xml` 读取（见第 2 步）。
 
 **没有 qBittorrent？** 加 profile 一起装：
 
@@ -131,8 +131,9 @@ DATA_DIR=./data
 > `environment:` 段逐项显式映射 —— `${VAR}` 替换对 `.env` 和 `--env-file` 两种
 > 来源都成立，且不依赖新版 Compose 语法。命令行和 OMV 都能直接用，不需要改文件。
 
-Up 之后按第 2 步配 Prowlarr（`http://<OMV_IP>:9696`），把 API Key 填回环境文件，
-再点一次 **Up** 让它生效。
+Up 之后打开 `http://<OMV_IP>:9696` 按第 2 步添加站点即可。
+**不需要回填 API Key**，也不需要再点一次 Up —— 本应用会自动从 Prowlarr 的
+`config.xml` 读出它自己生成的 Key。
 
 > 插件的备份功能可以用注释控制：给卷加 `# BACKUP` 强制备份、`# SKIP_BACKUP` 排除。
 > 本项目的 `${DATA_DIR}/prowlarr` 值得备份（里面是站点定义和 Cookie）。
@@ -184,32 +185,26 @@ Fork/clone 本仓库后，到 GitHub 仓库的
 
 ### 2. 配置 Prowlarr（关键一步）
 
-> **`PROWLARR_API_KEY` 首次部署时留空就行。** 它要先把 Prowlarr 跑起来才能拿到，
-> 所以 compose 刻意没把它设成必填 —— 否则会死锁：变量插值发生在选择服务之前，
-> 连 `docker compose up -d prowlarr` 都会被拦住。
-> 留空时应用照常启动，设置页会直接告诉你去哪里取 Key。
+> **`PROWLARR_API_KEY` 不用填。** Prowlarr 首次启动会自己生成一个 API Key 并写进
+> `config.xml`，compose 已把它的配置目录只读挂给本应用，会自动读出来 ——
+> 无需复制粘贴，也没有「先启动再回填再重启」的往返。
+>
+> 只有 Prowlarr 跑在**另一台机器**上、读不到它的 `config.xml` 时才需要手动填。
+>
+> 刻意**不去改** Prowlarr 的 key（例如用 `PROWLARR__AUTH__APIKEY` 环境变量强制指定，
+> 这招实测可行）—— 那会把已有 Prowlarr 的 key 换掉，连带弄坏其他指向它的
+> 客户端（Sonarr / Radarr 等）。读比写安全。
 
-**取 API Key（两种任选）：**
+打开 `http://<NAS_IP>:9696` 添加站点：
 
-```bash
-# 方式 1：网页
-#   浏览器开 http://<NAS_IP>:9696 → Settings → General → Security → API Key
-
-# 方式 2：命令行，不用开网页
-docker compose exec prowlarr grep -o '<ApiKey>[^<]*' /config/config.xml
-```
-
-填进 `.env` 的 `PROWLARR_API_KEY`，再 `docker compose up -d`（OMV 上点一次 **Up**）即生效。
-
-然后打开 `http://<NAS_IP>:9696` 继续：
-
-1. 确认 **Settings → General → Security → API Key** 与 `.env` 里一致。
-2. **Indexers → Add Indexer** 逐个添加你的站。国内 NexusPHP 站基本都是 **Cookie 登录**：
+1. **Indexers → Add Indexer** 逐个添加你的站。国内 NexusPHP 站基本都是 **Cookie 登录**：
    - 浏览器登录站点 → F12 → Network → 任意请求 → Request Headers → 复制整条 `Cookie`
    - 粘贴到 indexer 的 Cookie 字段
    - 同时把 **User-Agent** 也填成同一个浏览器的，否则挂了 Cloudflare 的站会当异常请求拦掉
-3. **Settings → Indexers → FlareSolverr**：Host 填 `http://flaresolverr:8191/`，用于过 Cloudflare 五秒盾。国内站建议开。
-4. 每个 indexer 点 **Test**，绿勾才算通。
+2. **Settings → Indexers → FlareSolverr**：Host 填 `http://flaresolverr:8191/`，用于过 Cloudflare 五秒盾。国内站建议开。
+3. 每个 indexer 点 **Test**，绿勾才算通。
+
+加完站点直接回 App 搜索即可，**不需要重启本服务**。
 
 > Cookie 会过期（通常几周到几个月）。站点搜不出东西时，第一件事就是回来重填 Cookie。
 > App 里如果推送时报「拿到的不是种子文件…掉登录态」，也是同一个原因。

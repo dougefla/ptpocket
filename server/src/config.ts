@@ -15,10 +15,16 @@ const schema = z.object({
 
   PROWLARR_URL: z.string().url().transform(stripSlash),
   /**
-   * 允许留空：首次部署时 Prowlarr 还没跑起来，拿不到 Key。
-   * 空值不阻止启动，搜索与健康检查会明确提示未配置。
+   * 通常不用填。留空时会自动从 Prowlarr 的 config.xml 里读
+   * （见 PROWLARR_CONFIG_FILE）—— Prowlarr 首次启动会自己生成一个。
+   * 只有 Prowlarr 在别的机器上、读不到它的配置文件时才需要手动填。
    */
   PROWLARR_API_KEY: z.string().default(""),
+  /**
+   * Prowlarr 的 config.xml 路径（容器内）。compose 会把 Prowlarr 的配置目录
+   * 以只读方式挂到这里，从而免去手工复制 API Key。
+   */
+  PROWLARR_CONFIG_FILE: z.string().default("/prowlarr-config/config.xml"),
 
   /**
    * M-Team（馒头）原生适配器。Prowlarr / Jackett 上游都没有它的定义

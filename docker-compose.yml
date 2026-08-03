@@ -30,10 +30,10 @@ services:
       - SESSION_DAYS=${SESSION_DAYS:-30}
       # Prowlarr
       - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
-      # 刻意不设为必填：API Key 要先把 Prowlarr 跑起来才能拿到，若在这里用 ${VAR:?}
-      # 会造成死锁 —— 变量插值发生在选择服务之前，连 `up -d prowlarr` 都过不去。
-      # 留空时应用照常启动，设置页会提示未配置。
+      # 通常留空即可 —— 下面挂了 Prowlarr 的配置目录，会自动从 config.xml 读出
+      # 它首次启动时自己生成的 API Key。只有 Prowlarr 在别的机器上才需要手填。
       - PROWLARR_API_KEY=${PROWLARR_API_KEY:-}
+      - PROWLARR_CONFIG_FILE=/prowlarr-config/config.xml
       # M-Team（留空即不启用）
       - MTEAM_API_KEY=${MTEAM_API_KEY:-}
       - MTEAM_URL=${MTEAM_URL:-https://kp.m-team.cc}
@@ -52,6 +52,11 @@ services:
       - SEARCH_LIMIT=${SEARCH_LIMIT:-100}
       - TRUST_PROXY=${TRUST_PROXY:-true}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # 只读挂载 Prowlarr 的配置目录，用来自动读取它生成的 API Key，
+      # 省掉手工复制。只读 + 本应用本就通过 Prowlarr API 拥有同等访问权，
+      # 所以没有额外的权限暴露。
+      - ${DATA_DIR:-./data}/prowlarr:/prowlarr-config:ro
     ports:
       # 唯一需要对外的端口。务必套 HTTPS 再暴露到公网（见 README）。
       # 若用 Cloudflare Tunnel，把这段整体注释掉即可 —— tunnel 容器在同一
