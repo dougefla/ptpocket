@@ -18,8 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 不指定 version，交给 package.json 的 packageManager 字段决定，
+      # 否则两处版本会冲突报错
       - uses: pnpm/action-setup@v4
-        with: { version: 11 }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -48,6 +49,14 @@ jobs:
             runner: ubuntu-24.04-arm
             platform: linux/arm64
     steps:
+      # 没配 secret 时给一句人话，而不是让 docker 报一堆看不懂的错
+      - name: 检查 Docker Hub 凭据
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::缺少 Docker Hub 凭据。请到 Settings → Secrets and variables → Actions 添加 DOCKERHUB_USERNAME 和 DOCKERHUB_TOKEN（token 权限选 Read & Write）。"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
