@@ -36,6 +36,15 @@ const schema = z.object({
   QB_URL: z.string().url().transform(stripSlash),
   QB_USERNAME: z.string().default(""),
   QB_PASSWORD: z.string().default(""),
+  /**
+   * 跳过 qBittorrent 的 TLS 证书校验。
+   * 只在下载器是远程、且用自签证书时才需要开。开了就等于不验证中间人，
+   * 能用正式证书（Let's Encrypt）或走 VPN/内网明文就别开。
+   */
+  QB_INSECURE_TLS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 
   /** 推送时的默认值，前端可覆盖 */
   QB_DEFAULT_CATEGORY: z.string().default(""),

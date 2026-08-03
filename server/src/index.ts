@@ -36,7 +36,13 @@ async function main() {
   await app.register(rateLimit, { global: false });
 
   const prowlarr = new ProwlarrClient(config.PROWLARR_URL, config.PROWLARR_API_KEY);
-  const qb = new QbClient(config.QB_URL, config.QB_USERNAME, config.QB_PASSWORD);
+  const qb = new QbClient(config.QB_URL, config.QB_USERNAME, config.QB_PASSWORD, {
+    insecureTls: config.QB_INSECURE_TLS,
+  });
+
+  if (config.QB_INSECURE_TLS) {
+    app.log.warn("QB_INSECURE_TLS 已开启：不校验 qBittorrent 的 TLS 证书，仅在自签证书的自有下载器上使用");
+  }
   const adapters = buildAdapters(config);
 
   if (adapters.length) {

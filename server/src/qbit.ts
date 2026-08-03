@@ -1,3 +1,14 @@
+// 一律用 undici 自己的 fetch/Headers/FormData：@types/node 捆绑的 undici-types
+// 与本包版本不同，混用全局类型会导致 TS 报不兼容
+import {
+  Agent,
+  fetch,
+  FormData,
+  Headers,
+  type RequestInit as UndiciRequestInit,
+  type Response as UndiciResponse,
+} from "undici";
+
 /**
  * qBittorrent WebUI API v2 客户端。
  *
@@ -5,7 +16,42 @@
  *   - qB 5.x（WebAPI >= 2.11.0）只认 `stopped`，端点是 /torrents/start、/torrents/stop
  *   - qB 4.x 用 `paused`，端点是 /torrents/resume、/torrents/pause
  * add 时两个参数一起发（未知参数会被忽略），动作端点按版本分发并带 404 兜底。
+ *
+ * 用 undici 的 fetch 而非全局 fetch，是为了能给「远程下载器」这一场景控制连接行为：
+ * 自签证书需要单独放行（不能用 NODE_TLS_REJECT_UNAUTHORIZED 那种全局开关，
+ * 否则会连带把 Prowlarr 和 PT 站的校验也一起关掉）。
  */
+
+/** 把底层网络错误翻译成能照着排查的中文 */
+function describeNetworkError(err: unknown, baseUrl: string): string {
+  const e = err as { message?: string; cause?: { code?: string; message?: string } };
+  const code = e?.cause?.code ?? "";
+  const detail = e?.cause?.message ?? e?.message ?? "";
+
+  switch (code) {
+    case "ENOTFOUND":
+    case "EAI_AGAIN":
+      return `解析不了域名 ${baseUrl} —— 检查地址是否写错，或容器内 DNS 是否正常`;
+    case "ECONNREFUSED":
+      return `${baseUrl} 拒绝连接 —— qBittorrent 没在监听该端口，或防火墙挡了`;
+    case "ETIMEDOUT":
+    case "UND_ERR_CONNECT_TIMEOUT":
+      return `连接 ${baseUrl} 超时 —— 远程下载器不可达，检查端口映射 / 防火墙 / VPN 是否在线`;
+    case "EHOSTUNREACH":
+    case "ENETUNREACH":
+      return `路由不到 ${baseUrl} —— 容器所在网络无法访问该地址`;
+    case "DEPTH_ZERO_SELF_SIGNED_CERT":
+    case "SELF_SIGNED_CERT_IN_CHAIN":
+    case "UNABLE_TO_VERIFY_LEAF_SIGNATURE":
+      return `${baseUrl} 用的是自签 TLS 证书。若确认是你自己的下载器，在 .env 里设 QB_INSECURE_TLS=true；更稳妥的做法是换正式证书或走 VPN 用 http 访问`;
+    case "CERT_HAS_EXPIRED":
+      return `${baseUrl} 的 TLS 证书已过期`;
+    case "ERR_TLS_CERT_ALTNAME_INVALID":
+      return `${baseUrl} 的 TLS 证书与域名不匹配`;
+    default:
+      return `连不上 qBittorrent (${baseUrl}): ${detail || "未知网络错误"}`;
+  }
+}
 
 export interface QbTorrent {
   hash: string;
@@ -58,12 +104,24 @@ export class QbClient {
   private sid: string | null = null;
   private loginPromise: Promise<void> | null = null;
   private webApiVersion: string | null = null;
+  private readonly dispatcher: Agent;
 
   constructor(
     private readonly baseUrl: string,
     private readonly username: string,
     private readonly password: string,
-  ) {}
+    opts: { insecureTls?: boolean } = {},
+  ) {
+    this.dispatcher = new Agent({
+      // 远程下载器的往返明显慢于内网，超时给宽一点
+      connect: {
+        timeout: 15_000,
+        ...(opts.insecureTls ? { rejectUnauthorized: false } : {}),
+      },
+      headersTimeout: 30_000,
+      bodyTimeout: 120_000,
+    });
+  }
 
   // ---------------------------------------------------------------- auth
 
@@ -85,8 +143,9 @@ export class QbClient {
         Origin: this.baseUrl,
       },
       redirect: "manual",
-    }).catch((err: Error) => {
-      throw new QbError(`连不上 qBittorrent (${this.baseUrl}): ${err.message}`);
+      dispatcher: this.dispatcher,
+    }).catch((err: unknown) => {
+      throw new QbError(describeNetworkError(err, this.baseUrl));
     });
 
     const text = (await res.text()).trim();
@@ -115,9 +174,9 @@ export class QbClient {
 
   private async request(
     path: string,
-    init: RequestInit & { timeoutMs?: number } = {},
+    init: UndiciRequestInit & { timeoutMs?: number } = {},
     allowRetry = true,
-  ): Promise<Response> {
+  ): Promise<UndiciResponse> {
     await this.ensureAuth();
 
     const { timeoutMs = 20_000, ...rest } = init;
@@ -129,7 +188,12 @@ export class QbClient {
       headers.set("Referer", this.baseUrl);
       if (this.sid) headers.set("Cookie", `SID=${this.sid}`);
 
-      const res = await fetch(`${this.baseUrl}${path}`, { ...rest, headers, signal: ctl.signal });
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...rest,
+        headers,
+        signal: ctl.signal,
+        dispatcher: this.dispatcher,
+      });
 
       // 会话过期 → 重新登录一次
       if (res.status === 403 && allowRetry && this.username) {
@@ -141,7 +205,7 @@ export class QbClient {
     } catch (err) {
       if ((err as Error)?.name === "AbortError") throw new QbError(`qBittorrent 请求超时: ${path}`);
       if (err instanceof QbError) throw err;
-      throw new QbError(`qBittorrent 请求失败: ${(err as Error).message}`);
+      throw new QbError(describeNetworkError(err, this.baseUrl));
     } finally {
       clearTimeout(timer);
     }

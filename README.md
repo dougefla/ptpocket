@@ -74,6 +74,34 @@ docker compose up -d
 docker compose --profile qbit up -d      # 同时把 QB_URL 改成 http://qbittorrent:8080
 ```
 
+### 1a. 下载器在远程
+
+完全支持，且**不需要给远程下载器任何 PT 站凭据**——后端会把 `.torrent` 字节直接
+上传给它（`/api/v2/torrents/add` 的 multipart 文件字段），它不必能访问 PT 站，
+也不需要 Cookie 或 passkey。只有三点要注意：
+
+| 事项 | 说明 |
+|---|---|
+| **`QB_URL`** | 填远程地址，如 `https://qb.example.com`。别用 `host.docker.internal`，那是指宿主机。 |
+| **必须用账号密码** | qB 的「对本机/白名单免认证」对远程访问不生效，`QB_USERNAME`/`QB_PASSWORD` 必填。 |
+| **`QB_DEFAULT_SAVEPATH`** | 若要设置，写的是**远程机器上**的路径，不是 NAS 上的。 |
+
+**传输安全**：qB WebUI 的登录是明文表单。如果直接暴露在公网上用 `http://`，
+密码等于裸奔。按优先级选：
+
+1. **VPN / Tailscale / WireGuard** 打通后用 `http://` 内网地址访问 —— 最省事也最安全
+2. 套反代 + **正式证书**（Let's Encrypt），用 `https://`
+3. 自签证书 —— 需要在 `.env` 里设 `QB_INSECURE_TLS=true`。这会关掉证书校验、
+   失去中间人防护，仅在你确认链路可信时用。
+   （这个开关只作用于 qBittorrent 连接，不影响 Prowlarr 和 PT 站的证书校验。）
+
+连不上时不用猜，App 设置页会直接说明原因——域名解析失败、端口拒绝、连接超时、
+自签证书、证书过期、证书与域名不符，都有对应的中文提示。
+
+> 若远程 qB 挂在反代后面并用域名访问，记得在 qBittorrent 的
+> **选项 → Web UI** 里把该域名加进「服务器域名白名单」，否则它会以
+> Host 头校验失败为由拒绝请求。
+
 **想自己改代码后本地构建**（不推荐在低配 NAS 上做，可能几十分钟或 OOM）：
 
 ```bash
