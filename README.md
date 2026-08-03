@@ -75,6 +75,12 @@ docker compose up -d
 docker compose --profile qbit up -d      # 同时把 QB_URL 改成 http://qbittorrent:8080
 ```
 
+**下载器在远程、NAS 上不装 qBittorrent？** 那段本来就在 `profiles: [qbit]` 下，
+不传 `--profile qbit` 就永远不会启动，**留着不影响任何东西**。
+想让文件更干净可以整段删掉（`qbittorrent:` 那个服务块），已验证删后 compose 仍有效、
+`depends_on` 指向的是 prowlarr 不受影响。顺带 `.env` 里的 `QB_PORT` 和
+`DOWNLOADS_DIR` 也就没人读了，可一并删除。
+
 **想自己改代码后本地构建**（不推荐在低配 NAS 上做，可能几十分钟或 OOM）：
 
 ```bash
