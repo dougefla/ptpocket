@@ -51,6 +51,9 @@ for p in $PORTS; do
   fi
 done
 
+echo "==> 校验 compose 环境变量覆盖完整"
+node "$S/check-compose-env.mjs" || exit 1
+
 echo "==> 构建后端"
 (cd "$ROOT" && pnpm --filter @ptpocket/server build) >/dev/null || { echo "构建失败"; exit 1; }
 

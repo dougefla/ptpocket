@@ -26,6 +26,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: node test/check-compose-env.mjs
       - run: pnpm typecheck
       - run: pnpm build
       # 全 mock，不需要真实的 Prowlarr / qBittorrent / M-Team 账号

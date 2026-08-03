@@ -16,9 +16,39 @@ services:
     image: ${PTPOCKET_IMAGE:-douge/ptpocket:latest}
     container_name: ptpocket
     restart: unless-stopped
-    env_file: .env
+    # 刻意逐项显式映射，而不是用 env_file。原因：
+    #   - OMV 的 compose 插件把环境文件命名为 <栈名>.env（如 ptpocket.env），
+    #     不是 .env，写死 `env_file: .env` 在 OMV 上会找不到文件
+    #   - 用 `env_file: [{path, required: false}]` 能兼容两者，但那语法要求
+    #     Compose >= 2.24，旧版 Docker 会直接语法报错 —— NAS 上版本参差不齐，赌不起
+    # 变量替换（${VAR}）在所有 Compose 版本、以及 --env-file 与 .env 两种来源下都成立。
     environment:
       - TZ=${TZ:-Asia/Shanghai}
+      # 访问控制
+      - APP_PASSWORD=${APP_PASSWORD:?请在环境文件里设置 APP_PASSWORD}
+      - SESSION_SECRET=${SESSION_SECRET:?请用 openssl rand -hex 32 生成 SESSION_SECRET}
+      - SESSION_DAYS=${SESSION_DAYS:-30}
+      # Prowlarr
+      - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY:?请填 Prowlarr 的 API Key}
+      # M-Team（留空即不启用）
+      - MTEAM_API_KEY=${MTEAM_API_KEY:-}
+      - MTEAM_URL=${MTEAM_URL:-https://kp.m-team.cc}
+      - MTEAM_API_URL=${MTEAM_API_URL:-}
+      - MTEAM_MODE=${MTEAM_MODE:-normal}
+      # qBittorrent
+      - QB_URL=${QB_URL:?请填 qBittorrent 的地址}
+      - QB_USERNAME=${QB_USERNAME:-}
+      - QB_PASSWORD=${QB_PASSWORD:-}
+      - QB_INSECURE_TLS=${QB_INSECURE_TLS:-false}
+      - QB_DEFAULT_CATEGORY=${QB_DEFAULT_CATEGORY:-}
+      - QB_DEFAULT_TAGS=${QB_DEFAULT_TAGS:-}
+      - QB_DEFAULT_SAVEPATH=${QB_DEFAULT_SAVEPATH:-}
+      # 其他
+      - SEARCH_TIMEOUT_MS=${SEARCH_TIMEOUT_MS:-45000}
+      - SEARCH_LIMIT=${SEARCH_LIMIT:-100}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     ports:
       # 唯一需要对外的端口。务必套 HTTPS 再暴露到公网（见 README）。
       # 若用 Cloudflare Tunnel，把这段整体注释掉即可 —— tunnel 容器在同一

@@ -60,21 +60,77 @@ docker compose up -d
 
 | 变量 | 说明 |
 |---|---|
-| `PTPOCKET_IMAGE` | 改成你自己 Docker Hub 用户名下的镜像 |
 | `SESSION_SECRET` | `openssl rand -hex 32` 生成 |
 | `APP_PASSWORD` | 打开 App 时输入的密码 |
 | `PROWLARR_API_KEY` | 第 2 步配好 Prowlarr 后回来填 |
-| `QB_URL` / `QB_PASSWORD` | 指向 NAS 上已有的 qBittorrent |
+| `QB_URL` / `QB_PASSWORD` | 指向你的 qBittorrent（远程也可以，见 1c） |
 | `DATA_DIR` | 配置存放目录，写绝对路径 |
-| `PUID` / `PGID` | 群晖常是 `1026`/`100`，unRAID 是 `99`/`100`，用 `id` 命令确认 |
+| `PUID` / `PGID` | 群晖常是 `1026`/`100`，OMV/威联通 `1000`/`100`，unRAID `99`/`100`，用 `id` 确认 |
 
-**NAS 上没有 qBittorrent？** 加 profile 一起装：
+`PTPOCKET_IMAGE` 默认已指向本项目发布的公开镜像，不用改；除非你 fork 后自建（见 1d）。
+
+**没有 qBittorrent？** 加 profile 一起装：
 
 ```bash
 docker compose --profile qbit up -d      # 同时把 QB_URL 改成 http://qbittorrent:8080
 ```
 
-### 1a. 下载器在远程
+**想自己改代码后本地构建**（不推荐在低配 NAS 上做，可能几十分钟或 OOM）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+### 1a. OpenMediaVault（OMV）
+
+OMV 用 omv-extras 的 **Compose 插件**管理 Docker，流程和命令行不太一样。
+
+**准备**（只做一次）：
+
+1. 装好 [omv-extras](https://wiki.omv-extras.org/)，再到 **System → Plugins** 安装
+   `openmediavault-compose`（它会带上 Docker）
+2. **Services → Compose → Settings**，指定几个共享文件夹：
+   - **Compose Files** —— 存放各 stack 的 yml 和 env
+   - **Appdata** —— 容器配置持久化位置
+   - **Docker Storage** —— **务必放在数据盘而不是系统盘**，否则容易把 OS 盘写满
+3. **Users** 里建一个专用用户（如 `appuser`，不要用 root），记下它的 UID；
+   OMV 的 `users` 组 GID 是 **100**。把 Compose Files / Appdata 共享文件夹的
+   权限给这个用户。
+
+**部署**：
+
+1. **Services → Compose → Files → ADD**
+2. Name 填 `ptpocket`，把本仓库的 `docker-compose.yml` 内容粘进 YAML 框
+3. 切到环境文件那一栏，把 `.env.example` 内容粘进去，按下面调整后保存
+4. 先点 **Check** 校验语法，再点 **Up** 启动（首次会拉镜像）
+
+**OMV 上的 `.env` 要点：**
+
+```bash
+PTPOCKET_IMAGE=douge/ptpocket:latest
+
+# OMV 的 users 组是 100；PUID 填你建的那个用户的 UID（用 `id appuser` 查）
+PUID=1000
+PGID=100
+
+# 相对路径最省事 —— Compose 插件会把 ./data 建在该 stack 自己的目录下，
+# 不用去拼 /srv/dev-disk-by-uuid-xxxx/... 这种路径
+DATA_DIR=./data
+# 也可以用插件的占位符，它会替换成你在 Settings 里配的 data 共享文件夹：
+# DATA_DIR=CHANGE_TO_COMPOSE_DATA_PATH/ptpocket
+```
+
+> **已适配的一个坑**：OMV 插件把环境文件命名为 `ptpocket.env` 而不是 `.env`。
+> 本仓库的 compose 里两个名字都声明了且都标为可选，所以命令行和 OMV 都能直接用，
+> 不需要改文件。
+
+Up 之后按第 2 步配 Prowlarr（`http://<OMV_IP>:9696`），把 API Key 填回环境文件，
+再点一次 **Up** 让它生效。
+
+> 插件的备份功能可以用注释控制：给卷加 `# BACKUP` 强制备份、`# SKIP_BACKUP` 排除。
+> 本项目的 `${DATA_DIR}/prowlarr` 值得备份（里面是站点定义和 Cookie）。
+
+### 1c. 下载器在远程
 
 完全支持，且**不需要给远程下载器任何 PT 站凭据**——后端会把 `.torrent` 字节直接
 上传给它（`/api/v2/torrents/add` 的 multipart 文件字段），它不必能访问 PT 站，
@@ -102,13 +158,7 @@ docker compose --profile qbit up -d      # 同时把 QB_URL 改成 http://qbitto
 > **选项 → Web UI** 里把该域名加进「服务器域名白名单」，否则它会以
 > Host 头校验失败为由拒绝请求。
 
-**想自己改代码后本地构建**（不推荐在低配 NAS 上做，可能几十分钟或 OOM）：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
-
-### 1b. 配置自动构建（只需做一次）
+### 1d. 自建镜像（可选，只需做一次）
 
 Fork/clone 本仓库后，到 GitHub 仓库的
 **Settings → Secrets and variables → Actions** 添加两个 secret：
