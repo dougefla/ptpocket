@@ -1,65 +1,83 @@
+# PT Pocket —— NAS 部署用 compose
+#
+#   docker compose pull && docker compose up -d
+#
+# 所有可变项都在 .env 里（从 .env.example 复制）。默认不含 qBittorrent，
+# 因为 NAS 上通常已经装过了；没有的话加 --profile qbit 一起拉起来：
+#
+#   docker compose --profile qbit up -d
+#
+# 想在本机改代码后自己构建镜像，叠加 build 覆盖文件：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
 services:
   ptpocket:
-    build: .
-    # 也可以先本地 build 好再用镜像名：image: ptpocket:latest
+    image: ${PTPOCKET_IMAGE:-dougefla/ptpocket:latest}
     container_name: ptpocket
     restart: unless-stopped
     env_file: .env
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
     ports:
-      - "8787:8787"
+      - "${PTPOCKET_PORT:-8787}:8787"
+    # 让容器能用 http://host.docker.internal:<端口> 访问宿主机上已有的 qBittorrent，
+    # 省得去查 NAS 的内网 IP。qB 若和本 compose 一起跑，直接用服务名 qbittorrent 即可。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - prowlarr
-    networks:
-      - ptnet
+      prowlarr:
+        condition: service_started
+    networks: [ptnet]
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Asia/Shanghai
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Asia/Shanghai}
     volumes:
-      - ./data/prowlarr:/config
+      # 上游没收录的站点，把自定义 Cardigann 定义丢进
+      # ${DATA_DIR}/prowlarr/Definitions/Custom/ 即可
+      - ${DATA_DIR:-./data}/prowlarr:/config
     ports:
-      # 只为首次配置站点用；配完可以把这行注释掉，只留内网互通
-      - "9696:9696"
-    networks:
-      - ptnet
+      # 只为首次配置站点用。配完可以注释掉，让它只在内网可达
+      - "${PROWLARR_PORT:-9696}:9696"
+    networks: [ptnet]
 
-  # 过 Cloudflare 五秒盾用。国内站基本都挂了 CF，建议保留。
+  # 过 Cloudflare 五秒盾。国内站基本都挂了 CF，建议保留。
+  # Prowlarr 里填 http://flaresolverr:8191/
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     restart: unless-stopped
     environment:
       - LOG_LEVEL=warning
-      - TZ=Asia/Shanghai
-    networks:
-      - ptnet
+      - TZ=${TZ:-Asia/Shanghai}
+    networks: [ptnet]
 
-  # NAS 上通常已经有 qBittorrent 了，直接在 .env 里填它的地址即可。
-  # 如果没有，取消下面的注释一起跑起来：
-  #
-  # qbittorrent:
-  #   image: lscr.io/linuxserver/qbittorrent:latest
-  #   container_name: qbittorrent
-  #   restart: unless-stopped
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=Asia/Shanghai
-  #     - WEBUI_PORT=8080
-  #   volumes:
-  #     - ./data/qbittorrent:/config
-  #     - /volume1/downloads:/downloads
-  #   ports:
-  #     - "8080:8080"
-  #     - "6881:6881"
-  #     - "6881:6881/udp"
-  #   networks:
-  #     - ptnet
+  # 仅在 --profile qbit 时启动。已有 qBittorrent 的话别开，
+  # 直接在 .env 里把 QB_URL 指向它。
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    profiles: [qbit]
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Asia/Shanghai}
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    volumes:
+      - ${DATA_DIR:-./data}/qbittorrent:/config
+      - ${DOWNLOADS_DIR:-./data/downloads}:/downloads
+    ports:
+      - "${QB_PORT:-8080}:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    networks: [ptnet]
 
 networks:
   ptnet:

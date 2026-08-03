@@ -36,15 +36,66 @@ PT-depiler 之所以能工作，是因为它是**浏览器扩展**——扩展�
 
 ## 快速开始
 
-### 1. 部署
+### 1. 部署到 NAS
+
+镜像由 GitHub Actions 构建好推到 Docker Hub（amd64 + arm64 双架构），
+NAS 上只需拉取，不占 NAS 资源、也不用在 NAS 上装构建工具链。
 
 ```bash
-git clone <你的仓库> ptpocket && cd ptpocket
-cp .env.example .env
-openssl rand -hex 32          # 把输出填进 .env 的 SESSION_SECRET
-vi .env                       # 至少填 APP_PASSWORD / PROWLARR_API_KEY / QB_*
-docker compose up -d --build
+# 在 NAS 上，任选一个目录
+mkdir -p /volume1/docker/ptpocket && cd /volume1/docker/ptpocket   # 群晖示例
+
+# 只需要这两个文件
+curl -O https://raw.githubusercontent.com/dougefla/ptpocket/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/dougefla/ptpocket/main/.env.example
+
+openssl rand -hex 32          # 输出填进 .env 的 SESSION_SECRET
+vi .env                       # 见下方「必改项」
+
+docker compose pull
+docker compose up -d
 ```
+
+**`.env` 里必改的几项：**
+
+| 变量 | 说明 |
+|---|---|
+| `PTPOCKET_IMAGE` | 改成你自己 Docker Hub 用户名下的镜像 |
+| `SESSION_SECRET` | `openssl rand -hex 32` 生成 |
+| `APP_PASSWORD` | 打开 App 时输入的密码 |
+| `PROWLARR_API_KEY` | 第 2 步配好 Prowlarr 后回来填 |
+| `QB_URL` / `QB_PASSWORD` | 指向 NAS 上已有的 qBittorrent |
+| `DATA_DIR` | 配置存放目录，写绝对路径 |
+| `PUID` / `PGID` | 群晖常是 `1026`/`100`，unRAID 是 `99`/`100`，用 `id` 命令确认 |
+
+**NAS 上没有 qBittorrent？** 加 profile 一起装：
+
+```bash
+docker compose --profile qbit up -d      # 同时把 QB_URL 改成 http://qbittorrent:8080
+```
+
+**想自己改代码后本地构建**（不推荐在低配 NAS 上做，可能几十分钟或 OOM）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+### 1b. 配置自动构建（只需做一次）
+
+Fork/clone 本仓库后，到 GitHub 仓库的
+**Settings → Secrets and variables → Actions** 添加两个 secret：
+
+| Secret | 值 |
+|---|---|
+| `DOCKERHUB_USERNAME` | 你的 Docker Hub 用户名 |
+| `DOCKERHUB_TOKEN` | Docker Hub → Account Settings → Personal access tokens 生成，权限选 **Read & Write** |
+
+之后每次推送到 `main` 都会自动跑冒烟测试 → 构建双架构镜像 → 推 Docker Hub。
+打 `v1.0.0` 这样的 tag 会额外产出 `1.0.0` / `1.0` 版本标签。
+
+> 构建用 GitHub 的**原生 arm64 runner**（公开仓库免费），不走 QEMU 模拟，
+> 所以 Dockerfile 里没有 `--platform=$BUILDPLATFORM` —— 那会让不带 buildx
+> 的旧版 Docker 无法本地构建。两个架构分别原生构建后合并 manifest。
 
 ### 2. 配置 Prowlarr（关键一步）
 

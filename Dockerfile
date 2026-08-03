@@ -1,6 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ---------------------------------------------------------------- 构建前后端
+#
+# 这里刻意不写 --platform=$BUILDPLATFORM：那样虽然能让跨架构构建免去 QEMU，
+# 却会让不带 buildx 的传统 builder（不少 NAS 自带的旧 Docker）直接报错。
+# 多架构镜像改由 CI 在各自架构的原生 runner 上分别构建、再合并 manifest
+# （见 .github/workflows/docker.yml），Dockerfile 保持到处都能 build。
 FROM node:22-alpine AS builder
 RUN corepack enable
 WORKDIR /app

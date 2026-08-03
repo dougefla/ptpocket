@@ -1,0 +1,13 @@
+# 覆盖文件：本地构建镜像而不是从 Docker Hub 拉。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# 注意：在低配 NAS 上首次构建要跑 pnpm install + 前端构建，可能几十分钟甚至 OOM。
+# 除非你在改代码，否则建议直接用预构建镜像。
+
+services:
+  ptpocket:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ptpocket:local
