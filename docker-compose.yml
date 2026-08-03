@@ -12,7 +12,9 @@
 
 services:
   ptpocket:
-    image: ${PTPOCKET_IMAGE:-dougefla/ptpocket:latest}
+    # 必须在 .env 里设成你自己的镜像；没设就直接报错，
+    # 免得默默去拉一个不存在的镜像然后困惑半天
+    image: ${PTPOCKET_IMAGE:?请在 .env 里设置 PTPOCKET_IMAGE，例如 yourname/ptpocket:latest}
     container_name: ptpocket
     restart: unless-stopped
     env_file: .env
