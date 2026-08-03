@@ -117,9 +117,16 @@ chk "请求落到了 Prowlarr（返回其 404 而非连接元数据）" "$r" 'er
 chk "Prowlarr mock 收到了被改写后的请求" "$(grep -c 'latest/meta-data' $S/prowlarr-qb.log || true)" '[1-9]'
 
 echo "== 8. 令牌失效时的报错可操作 =="
-r=$(curl -s -m 15 http://127.0.0.1:8794/api/health)
-chk "错误令牌导致 native ok=false" "$r" '"ok":false'
-chk "给出可操作提示（实验室→存取令牌）" "$r" '存取令牌'
+# 需要另一个「故意配错 M-Team 令牌」的实例，由 run.sh 启动在 BAD_B 上。
+# 单独跑本脚本时它可能不存在 —— 那就明确跳过，而不是报成失败。
+BAD_B=${BAD_B:-http://127.0.0.1:8794}
+if curl -sf -m 5 "$BAD_B/api/auth/me" >/dev/null 2>&1; then
+  r=$(curl -s -m 15 "$BAD_B/api/health")
+  chk "错误令牌导致 native ok=false" "$r" '"ok":false'
+  chk "给出可操作提示（实验室→存取令牌）" "$r" '存取令牌'
+else
+  echo "  – 跳过：$BAD_B 上没有实例（用 ./test/run.sh 可自动拉起）"
+fi
 
 echo
 echo "======================================"

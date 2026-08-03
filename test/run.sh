@@ -98,7 +98,7 @@ echo "######################## Prowlarr 路径 ########################"
 B="http://127.0.0.1:$PORT_MAIN" "$S/smoke-prowlarr.sh" || fail=1
 echo
 echo "######################## M-Team 适配器 ########################"
-B="http://127.0.0.1:$PORT_MAIN" "$S/smoke-mteam.sh" || fail=1
+B="http://127.0.0.1:$PORT_MAIN" BAD_B="http://127.0.0.1:$PORT_BADTOKEN" "$S/smoke-mteam.sh" || fail=1
 
 echo
 if [ "$fail" = "0" ]; then
