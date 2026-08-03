@@ -40,6 +40,13 @@ async function main() {
     insecureTls: config.QB_INSECURE_TLS,
   });
 
+  if (!config.PROWLARR_API_KEY) {
+    app.log.warn(
+      "未配置 PROWLARR_API_KEY —— 搜索不可用。请到 Prowlarr → Settings → General → Security " +
+        "复制 API Key 填进 .env，然后重启本服务",
+    );
+  }
+
   if (config.QB_INSECURE_TLS) {
     app.log.warn("QB_INSECURE_TLS 已开启：不校验 qBittorrent 的 TLS 证书，仅在自签证书的自有下载器上使用");
   }

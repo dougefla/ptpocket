@@ -184,9 +184,26 @@ Fork/clone 本仓库后，到 GitHub 仓库的
 
 ### 2. 配置 Prowlarr（关键一步）
 
-打开 `http://<NAS_IP>:9696`：
+> **`PROWLARR_API_KEY` 首次部署时留空就行。** 它要先把 Prowlarr 跑起来才能拿到，
+> 所以 compose 刻意没把它设成必填 —— 否则会死锁：变量插值发生在选择服务之前，
+> 连 `docker compose up -d prowlarr` 都会被拦住。
+> 留空时应用照常启动，设置页会直接告诉你去哪里取 Key。
 
-1. **Settings → General → API Key** 复制出来，填进 `.env` 的 `PROWLARR_API_KEY`，然后 `docker compose up -d` 重启生效。
+**取 API Key（两种任选）：**
+
+```bash
+# 方式 1：网页
+#   浏览器开 http://<NAS_IP>:9696 → Settings → General → Security → API Key
+
+# 方式 2：命令行，不用开网页
+docker compose exec prowlarr grep -o '<ApiKey>[^<]*' /config/config.xml
+```
+
+填进 `.env` 的 `PROWLARR_API_KEY`，再 `docker compose up -d`（OMV 上点一次 **Up**）即生效。
+
+然后打开 `http://<NAS_IP>:9696` 继续：
+
+1. 确认 **Settings → General → Security → API Key** 与 `.env` 里一致。
 2. **Indexers → Add Indexer** 逐个添加你的站。国内 NexusPHP 站基本都是 **Cookie 登录**：
    - 浏览器登录站点 → F12 → Network → 任意请求 → Request Headers → 复制整条 `Cookie`
    - 粘贴到 indexer 的 Cookie 字段

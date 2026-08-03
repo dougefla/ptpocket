@@ -120,10 +120,21 @@ export class ProwlarrClient {
     private readonly apiKey: string,
   ) {}
 
+  /** 未配置 API Key 时，给出「怎么拿」而不是让 Prowlarr 回一个费解的 401 */
+  private assertConfigured(): void {
+    if (!this.apiKey) {
+      throw new ProwlarrError(
+        "未配置 Prowlarr API Key。打开 Prowlarr → Settings → General → Security 复制 API Key，" +
+          "填进 .env 的 PROWLARR_API_KEY 后重启本服务（也可从 Prowlarr 配置目录的 config.xml 里读取）",
+      );
+    }
+  }
+
   private async fetchWithTimeout(
     path: string,
     opts: { signal?: AbortSignal; timeoutMs?: number; accept?: string } = {},
   ): Promise<Response> {
+    this.assertConfigured();
     const timeoutMs = opts.timeoutMs ?? 20_000;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -270,6 +281,7 @@ export class ProwlarrClient {
     downloadUrl: string,
     opts: { signal?: AbortSignal; timeoutMs?: number } = {},
   ): Promise<{ bytes: Uint8Array; filename: string }> {
+    this.assertConfigured();
     let url: string;
     try {
       url = this.rewriteOrigin(downloadUrl);

@@ -14,7 +14,11 @@ const schema = z.object({
   SESSION_DAYS: z.coerce.number().int().positive().default(30),
 
   PROWLARR_URL: z.string().url().transform(stripSlash),
-  PROWLARR_API_KEY: z.string().min(8),
+  /**
+   * 允许留空：首次部署时 Prowlarr 还没跑起来，拿不到 Key。
+   * 空值不阻止启动，搜索与健康检查会明确提示未配置。
+   */
+  PROWLARR_API_KEY: z.string().default(""),
 
   /**
    * M-Team（馒头）原生适配器。Prowlarr / Jackett 上游都没有它的定义

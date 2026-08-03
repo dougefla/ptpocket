@@ -30,7 +30,10 @@ services:
       - SESSION_DAYS=${SESSION_DAYS:-30}
       # Prowlarr
       - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
-      - PROWLARR_API_KEY=${PROWLARR_API_KEY:?请填 Prowlarr 的 API Key}
+      # 刻意不设为必填：API Key 要先把 Prowlarr 跑起来才能拿到，若在这里用 ${VAR:?}
+      # 会造成死锁 —— 变量插值发生在选择服务之前，连 `up -d prowlarr` 都过不去。
+      # 留空时应用照常启动，设置页会提示未配置。
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY:-}
       # M-Team（留空即不启用）
       - MTEAM_API_KEY=${MTEAM_API_KEY:-}
       - MTEAM_URL=${MTEAM_URL:-https://kp.m-team.cc}
