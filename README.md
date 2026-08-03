@@ -63,11 +63,11 @@ docker compose up -d
 | `SESSION_SECRET` | `openssl rand -hex 32` 生成 |
 | `APP_PASSWORD` | 打开 App 时输入的密码 |
 | `PROWLARR_API_KEY` | 第 2 步配好 Prowlarr 后回来填 |
-| `QB_URL` / `QB_PASSWORD` | 指向你的 qBittorrent（远程也可以，见 1c） |
+| `QB_URL` / `QB_PASSWORD` | 指向你的 qBittorrent（远程也可以，见 1b） |
 | `DATA_DIR` | 配置存放目录，写绝对路径 |
 | `PUID` / `PGID` | 群晖常是 `1026`/`100`，OMV/威联通 `1000`/`100`，unRAID `99`/`100`，用 `id` 确认 |
 
-`PTPOCKET_IMAGE` 默认已指向本项目发布的公开镜像，不用改；除非你 fork 后自建（见 1d）。
+`PTPOCKET_IMAGE` 默认已指向本项目发布的公开镜像，不用改；除非你 fork 后自建（见 1c）。
 
 **没有 qBittorrent？** 加 profile 一起装：
 
@@ -126,9 +126,10 @@ DATA_DIR=./data
 # DATA_DIR=CHANGE_TO_COMPOSE_DATA_PATH/ptpocket
 ```
 
-> **已适配的一个坑**：OMV 插件把环境文件命名为 `ptpocket.env` 而不是 `.env`。
-> 本仓库的 compose 里两个名字都声明了且都标为可选，所以命令行和 OMV 都能直接用，
-> 不需要改文件。
+> **已适配的一个坑**：OMV 插件把环境文件命名为 `ptpocket.env` 而不是 `.env`，
+> 写死 `env_file: .env` 在 OMV 上会找不到文件。本仓库的 compose 因此改成在
+> `environment:` 段逐项显式映射 —— `${VAR}` 替换对 `.env` 和 `--env-file` 两种
+> 来源都成立，且不依赖新版 Compose 语法。命令行和 OMV 都能直接用，不需要改文件。
 
 Up 之后按第 2 步配 Prowlarr（`http://<OMV_IP>:9696`），把 API Key 填回环境文件，
 再点一次 **Up** 让它生效。
@@ -136,7 +137,7 @@ Up 之后按第 2 步配 Prowlarr（`http://<OMV_IP>:9696`），把 API Key 填�
 > 插件的备份功能可以用注释控制：给卷加 `# BACKUP` 强制备份、`# SKIP_BACKUP` 排除。
 > 本项目的 `${DATA_DIR}/prowlarr` 值得备份（里面是站点定义和 Cookie）。
 
-### 1c. 下载器在远程
+### 1b. 下载器在远程
 
 完全支持，且**不需要给远程下载器任何 PT 站凭据**——后端会把 `.torrent` 字节直接
 上传给它（`/api/v2/torrents/add` 的 multipart 文件字段），它不必能访问 PT 站，
@@ -164,7 +165,7 @@ Up 之后按第 2 步配 Prowlarr（`http://<OMV_IP>:9696`），把 API Key 填�
 > **选项 → Web UI** 里把该域名加进「服务器域名白名单」，否则它会以
 > Host 头校验失败为由拒绝请求。
 
-### 1d. 自建镜像（可选，只需做一次）
+### 1c. 自建镜像（可选，只需做一次）
 
 Fork/clone 本仓库后，到 GitHub 仓库的
 **Settings → Secrets and variables → Actions** 添加两个 secret：
