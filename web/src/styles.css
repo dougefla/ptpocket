@@ -1,0 +1,215 @@
+:root {
+  --bg: #0b0d12;
+  --bg-elev: #151922;
+  --bg-elev-2: #1d222d;
+  --border: #262c39;
+  --text: #e8eaf0;
+  --text-dim: #99a1b3;
+  --text-faint: #646c7e;
+  --accent: #4c8dff;
+  --accent-dim: #2c5aa8;
+  --free: #2ec27e;
+  --warn: #e5a50a;
+  --danger: #f0546a;
+  --radius: 14px;
+  --tap: 44px; /* iOS 最小可点区域 */
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 52px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f3f7;
+    --bg-elev: #ffffff;
+    --bg-elev-2: #eceef4;
+    --border: #dcdfe8;
+    --text: #14161c;
+    --text-dim: #5d6474;
+    --text-faint: #8b91a1;
+    --accent: #0a63e8;
+    --accent-dim: #99bcf5;
+    --free: #1a8a55;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overscroll-behavior-y: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei",
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  /* 小于 16px 时 iOS 聚焦会自动放大页面 */
+  font-size: 16px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------ 通用组件 */
+
+.field {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field:focus {
+  border-color: var(--accent);
+}
+
+select.field {
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 2px),
+    calc(100% - 13px) calc(50% + 2px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.btn {
+  min-height: var(--tap);
+  padding: 0 18px;
+  border-radius: 11px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: opacity 0.12s;
+}
+
+.btn:active {
+  opacity: 0.6;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-danger {
+  color: var(--danger);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+.badge-free {
+  background: color-mix(in srgb, var(--free) 20%, transparent);
+  color: var(--free);
+}
+
+.badge-discount {
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
+}
+
+.badge-up {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+
+.badge-hr {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+}
+
+.badge-plain {
+  background: var(--bg-elev-2);
+  color: var(--text-faint);
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.empty {
+  padding: 60px 24px;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.empty-title {
+  font-size: 16px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+/* 滚动容器统一给出底部 tab bar 的让位 */
+.scroll-area {
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+  -webkit-overflow-scrolling: touch;
+}

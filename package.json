@@ -1,0 +1,16 @@
+{
+  "name": "ptpocket",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PT 聚合搜索 + 一键推送 qBittorrent 的自托管 PWA",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter @ptpocket/web build && pnpm --filter @ptpocket/server build",
+    "start": "pnpm --filter @ptpocket/server start",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

@@ -1,0 +1,66 @@
+services:
+  ptpocket:
+    build: .
+    # 也可以先本地 build 好再用镜像名：image: ptpocket:latest
+    container_name: ptpocket
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8787:8787"
+    depends_on:
+      - prowlarr
+    networks:
+      - ptnet
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data/prowlarr:/config
+    ports:
+      # 只为首次配置站点用；配完可以把这行注释掉，只留内网互通
+      - "9696:9696"
+    networks:
+      - ptnet
+
+  # 过 Cloudflare 五秒盾用。国内站基本都挂了 CF，建议保留。
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=warning
+      - TZ=Asia/Shanghai
+    networks:
+      - ptnet
+
+  # NAS 上通常已经有 qBittorrent 了，直接在 .env 里填它的地址即可。
+  # 如果没有，取消下面的注释一起跑起来：
+  #
+  # qbittorrent:
+  #   image: lscr.io/linuxserver/qbittorrent:latest
+  #   container_name: qbittorrent
+  #   restart: unless-stopped
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=Asia/Shanghai
+  #     - WEBUI_PORT=8080
+  #   volumes:
+  #     - ./data/qbittorrent:/config
+  #     - /volume1/downloads:/downloads
+  #   ports:
+  #     - "8080:8080"
+  #     - "6881:6881"
+  #     - "6881:6881/udp"
+  #   networks:
+  #     - ptnet
+
+networks:
+  ptnet:
+    driver: bridge
