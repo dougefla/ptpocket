@@ -1,7 +1,7 @@
 {
   "name": "ptpocket",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "PT 聚合搜索 + 一键推送 qBittorrent 的自托管 PWA",
   "packageManager": "pnpm@11.18.0",
   "engines": {

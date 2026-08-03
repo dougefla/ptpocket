@@ -21,6 +21,7 @@ const checking = ref(false);
 
 const standalone = window.matchMedia("(display-mode: standalone)").matches;
 const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const version = __APP_VERSION__;
 
 async function check() {
   checking.value = true;
@@ -121,7 +122,7 @@ async function logout() {
         <div class="card">
           <button class="row-btn danger" @click="logout">退出登录</button>
         </div>
-        <p class="note">PT Pocket v0.1.0</p>
+        <p class="note">PT Pocket v{{ version }}</p>
       </section>
     </div>
   </div>
